@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HLS Ollama Chat Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Flexbox Method */
+        .flexbox-layout {
+            display: flex;
+        }
+        .flexbox-layout .column {
+            flex: 1;
+            padding: 20px;
+        }
+
+        /* Grid Method */
+        .grid-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        /* CSS Columns Method */
+        .columns-layout {
+            column-count: 2;
+            column-gap: 20px;
+        }
+
+        /* Inline-block Method */
+        .inline-block-layout {
+            font-size: 0; /* Removes whitespace between elements */
+        }
+        .inline-block-layout .column {
+            display: inline-block;
+            width: 50%;
+            vertical-align: top;
+            padding: 20px;
+            box-sizing: border-box;
+            font-size: 16px; /* Restores font size */
+        }
+
+        /* Responsive Breakpoint */
+        @media (max-width: 768px) {
+            .flexbox-layout,
+            .grid-layout {
+                flex-direction: column;
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Base Styles */
+        .column {
+            background-color: #f4f4f4;
+            border: 1px solid #ddd;
+        }
+
+        .button1 {
+            background-color: rgb(230 52 8 / 50%);
+            /* background-color: #04AA6D; */
+            border: none;
+            color: black;
+            padding: 5px;
+            text-align: center;
+            text-decoration: underline;
+            display: inline-block;
+            font-size: 16px;
+            margin: 2px 2px;
+        }
+
+
+        .custom-select {
+          position: relative;
+          font-family: monospace;
+        }
+
+        .custom-select select {
+          display: none; /*hide original SELECT element: */
+        }
+
+        .select-selected {
+          background-color: DodgerBlue;
+        }
+
+        /* Style the arrow inside the select element: */
+        .select-selected:after {
+          position: absolute;
+          content: "";
+          top: 14px;
+          right: 10px;
+          width: 0;
+          height: 0;
+          border: 6px solid transparent;
+          border-color: #fff transparent transparent transparent;
+        }
+
+        /* Point the arrow upwards when the select box is open (active): */
+        .select-selected.select-arrow-active:after {
+          border-color: transparent transparent #fff transparent;
+          top: 7px;
+        }
+
+        /* style the items (options), including the selected item: */
+        .select-items div,.select-selected {
+          color: #ffffff;
+          padding: 8px 16px;
+          border: 1px solid transparent;
+          border-color: transparent transparent rgba(0, 0, 0, 0.1) transparent;
+          cursor: pointer;
+        }
+
+        /* Style items (options): */
+        .select-items {
+          position: absolute;
+          background-color: DodgerBlue;
+          top: 100%;
+          left: 0;
+          right: 0;
+          z-index: 99;
+        }
+
+        /* Hide the items when the select box is closed: */
+        .select-hide {
+          display: none;
+        }
+
+        .select-items div:hover, .same-as-selected {
+          background-color: rgba(0, 0, 0, 0.1);
+        }
+        #chat-container {
+            background-color: #f4f4f4;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: Arial, sans-serif;
+            max-width: 90%;
+            margin: 20px auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border: 1px solid #ddd;
+            height:auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+    <div style="width:100%">
+        <h1 class="text-3xl font-bold text-center mb-6">HLS Ollama Chat Interface</h1>
+
+        <div class="flexbox-layout">
+            <div id="chat-models" class="column"> 
+                <h2>Current Model</h2>
+                <select class="custom-select select-selected" id="models">
+                </select>
+            </div>
+            <div id="available-models" class="column"> 
+                <h2>Downloadable Models</h2>
+                <div>
+                    <select class="custom-select select-selected" id="downloadableModels">
+                    </select>
+                    <button class="button1" type="button">Download</button>
+                    <a target="_blank" style="cursor:pointer;" href="https://ollama.com/library"><u>Ollama Model Library</u></a>
+                </div>
+            </div>
+        </div>
+        
+        <div id="chat-container" class="bg-white shadow-md rounded-lg mb-4 p-4 h-96 overflow-y-auto">
+            <!-- Chat messages will appear here -->
+        </div>
+
+        <div class="flex">
+            <!--<input 
+                type="text" 
+                id="message-input" 
+                placeholder="Type your message..." 
+                class="flex-grow p-2 border rounded-l-lg"/>-->
+            <textarea id="message-input" placeholder="Type your message..." class="flex-grow p-2 border rounded-l-lg" name="w3review" rows="4" cols="50">
+            </textarea>
+            <button 
+                id="send-btn" 
+                class="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600"
+            >
+                Send
+            </button>
+        </div>
+
+        <div class="mt-4 flex space-x-4">
+            <button 
+                id="clear-history-btn" 
+                class="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+            >
+                Clear History
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const clearHistoryBtn = document.getElementById('clear-history-btn');
+
+        getAvailableModels();
+        getDownloadableModels();
+
+        function poupulateModels(content){
+            const mySelect = document.getElementById('models');
+            for(let i=0;i<content.length;i++){
+                const option = document.createElement('option'); 
+                option.value = content[i].name;
+                option.textContent = content[i].name;
+                mySelect.appendChild(option);
+            }
+        }
+
+        // Function to add a message to the chat
+        function addMessage(content, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('mb-2', 'p-2', 'rounded');
+            
+            if (sender === 'user') {
+                messageDiv.classList.add('bg-blue-100', 'text-right');
+                messageDiv.innerHTML = `<strong>You:</strong> ${content}`;
+            }
+            else {
+                messageDiv.classList.add('bg-gray-100');
+                messageDiv.innerHtml = '<strong>AI:</strong>';
+                messageDiv.innerText += `${content}`;
+            }
+            
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        async function getAvailableModels() {
+           try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        message: {},
+                        action: 'listModels' 
+                    }),
+                });
+
+                const data = await response.json();
+                poupulateModels(data.response);
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Sorry, there was an error processing your request.', 'ai');
+            } 
+        }
+
+        async function getDownloadableModels() {
+           /*try {
+                const response = await fetch('/api/models', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        message: {},
+                        action: 'listModels' 
+                    }),
+                });
+
+                const data = await response.json();
+                poupulateModels(data.response);
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Sorry, there was an error processing your request.', 'ai');
+            } */
+
+            models = ['gemma3', 
+                    'deepseek-r1',
+                    'llama3.3',
+                    'phi4',
+                    'nomic-embed-text',
+                    'mistral',
+                    'qwen2.5-coder',
+                    'llava',
+                    'codellama',
+                    'deepseek-v3',
+                    'deepseek-coder-v2',
+                    'snowflake-arctic-embed',
+                    'dolphin3',
+                    'openchat',
+                    'llama3.1-claude'];
+
+            const sortedModels = models.sort();
+            const avlModels = document.getElementById('downloadableModels');
+            for(let i=0;i<sortedModels.length;i++){
+                const option = document.createElement('option'); 
+                option.value = sortedModels[i];
+                option.textContent = sortedModels[i];
+                avlModels.appendChild(option);
+            }
+        }
+
+        // Send message function
+        async function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message) return;
+
+            // Clear input
+            messageInput.value = '';
+
+            // Add user message to chat
+            addMessage(message, 'user');
+            addMessage('Thinking deep...', 'ai');
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        message: message,
+                        action: 'chat',
+                        model: document.getElementById('models').value 
+                    }),
+                });
+
+                const data = await response.json();
+                
+                // Add AI response to chat
+                addMessage(data.response, 'ai');
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Sorry, there was an error processing your request.', 'ai');
+            }
+        }
+
+        // Clear history function
+        async function clearHistory() {
+            try {
+                /*const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        action: 'clearHistory' 
+                    }),
+                });
+
+                const data = await response.json();*/
+                
+                // Clear chat container
+                chatContainer.innerHTML = '';
+                addMessage('Chat history has been cleared.', 'ai');
+            } catch (error) {
+                console.error('Error:', error);
+                addMessage('Sorry, there was an error clearing the history.', 'ai');
+            }
+        }
+
+        // Event listeners
+        sendBtn.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        clearHistoryBtn.addEventListener('click', clearHistory);
+    </script>
+</body>
+</html>
